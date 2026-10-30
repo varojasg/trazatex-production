@@ -1,0 +1,53 @@
+package com.nodotextil.trazatex.production.application.usecase;
+import com.nodotextil.trazatex.production.application.dto.Actor;
+import com.nodotextil.trazatex.production.application.port.in.DeleteEvidenceUseCase;
+import com.nodotextil.trazatex.production.application.port.out.*;
+import com.nodotextil.trazatex.production.domain.model.EvidenceOwnerType;
+import com.nodotextil.trazatex.sharedkernel.exception.NotFoundException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+import java.time.Clock;
+import java.util.UUID;
+@Service
+class EvidenceDeletionService implements DeleteEvidenceUseCase {
+    private final BatchRepositoryPort batches;
+    private final TransformationRepositoryPort transformations;
+    private final EvidenceDeletionPort deletions;
+    private final EvidenceStoragePort storage;
+    private final AuditLogPort audit;
+    private final Clock clock;
+    private final TransactionTemplate transaction;
+    EvidenceDeletionService(BatchRepositoryPort batches, TransformationRepositoryPort transformations, EvidenceDeletionPort deletions,
+                            EvidenceStoragePort storage, AuditLogPort audit, Clock clock, PlatformTransactionManager manager) {
+        this.batches=batches; this.transformations=transformations; this.deletions=deletions; this.storage=storage;
+        this.audit=audit; this.clock=clock; this.transaction=new TransactionTemplate(manager);
+    }
+    @Override
+    public void delete(EvidenceOwnerType type, UUID ownerId, UUID evidenceId, Actor actor) {
+        transaction.executeWithoutResult(status -> {
+            boolean owned = type == EvidenceOwnerType.BATCH
+                    ? batches.findById(ownerId).filter(batch -> batch.companyId().equals(actor.companyId())).isPresent()
+                    : transformations.findById(ownerId).filter(process -> process.companyId().equals(actor.companyId())).isPresent();
+            if (!owned || !deletions.markDeleted(type, ownerId, evidenceId, actor.companyId(), clock.instant()))
+                throw new NotFoundException("EVIDENCE_NOT_FOUND", "La evidencia no existe o no pertenece a tu empresa.");
+            audit.record(actor.userId(), actor.companyId(), "EVIDENCE_DELETED", "Evidence", evidenceId.toString(), java.util.Map.of("ownerId", ownerId.toString()));
+        });
+    }
+    @Override
+    public int purgeDeleted() {
+        int count=0;
+        for (int i=0; i<5; i++) {
+            Boolean removed=transaction.execute(status -> {
+                var next=deletions.nextDeleted(clock.instant());
+                if (next.isEmpty()) return false;
+                storage.delete(next.get().toString());
+                deletions.purge(next.get());
+                return true;
+            });
+            if (!Boolean.TRUE.equals(removed)) break;
+            count++;
+        }
+        return count;
+    }
+}

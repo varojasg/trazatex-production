@@ -1,0 +1,87 @@
+spring:
+  application:
+    name: production
+  servlet:
+    multipart:
+
+      max-file-size: 10MB
+      max-request-size: 52MB
+      file-size-threshold: 1MB
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+
+server:
+  port: 8082
+  tomcat:
+
+    max-swallow-size: 60MB
+
+trazatex:
+  cloudinary:
+
+    url: ${CLOUDINARY_URL:}
+    base-url: https://api.cloudinary.com
+    connect-timeout: PT2S
+    read-timeout: PT8S
+    circuit-breaker: {sliding-window-size: 10, minimum-calls: 5, failure-rate-threshold: 50, wait-in-open-state: PT30S, half-open-calls: 2}
+  evidence:
+    max-files: 5
+    max-file-size: 10MB
+    upload:
+
+      enabled: true
+      job-delay: PT30S
+      job-initial-delay: PT10S
+
+      initial-delay: PT30S
+      claims-per-run: 5
+      lease: PT5M
+      not-available-delay: PT5M
+      max-attempts: 30
+      multiplier: 2.0
+      max-delay: PT30M
+  messaging:
+
+    enabled: true
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+    partitions: 1
+    replicas: 1
+    modify-topic-configs: true
+    relay-delay: PT1S
+    relay-batch-size: 100
+    consumer:
+
+      company:
+        group: production.orgaccess-company
+      quality:
+        group: production.quality-control
+
+        topic-check-interval: PT15S
+      retry:
+        max-retries: 5
+        initial-interval: PT1S
+        multiplier: 2.0
+        max-interval: PT30S
+  idempotency:
+    cleanup-job-delay: PT1H
+  phase-transitions:
+
+    retry-attempts: 5
+    retry-backoff: PT0.02S
+
+    lock-timeout: PT1.5S
+  transformation:
+
+    min-yield-percent:
+      spinning: ${TRAZATEX_TRANSFORMATION_MIN_YIELD_SPINNING:60}
+      weaving: ${TRAZATEX_TRANSFORMATION_MIN_YIELD_WEAVING:80}
+      dyeing: ${TRAZATEX_TRANSFORMATION_MIN_YIELD_DYEING:80}

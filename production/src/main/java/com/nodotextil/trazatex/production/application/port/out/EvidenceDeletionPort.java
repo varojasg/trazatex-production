@@ -1,0 +1,10 @@
+package com.nodotextil.trazatex.production.application.port.out;
+import com.nodotextil.trazatex.production.domain.model.EvidenceOwnerType;
+import java.time.Instant;
+import java.util.Optional;
+import java.util.UUID;
+public interface EvidenceDeletionPort {
+    boolean markDeleted(EvidenceOwnerType type, UUID ownerId, UUID evidenceId, UUID companyId, Instant now);
+    Optional<UUID> nextDeleted(Instant now);
+    void purge(UUID id);
+}
